@@ -1,0 +1,31 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model shows {
+  id                    Int      @id @default(autoincrement())
+  title                 String
+  poster_url            String?
+  type                  String
+  source                String
+  source_id             String
+
+  watch_status          String   @default("planned")
+  episodes_watched      Int      @default(0)
+  total_episodes        Int      @default(0)
+  last_notified_episodes Int     @default(0)
+
+  is_completed          Boolean  @default(false)
+  release_status        String?
+
+  created_at            DateTime @default(now())
+  updated_at            DateTime @updatedAt
+  sort_order            Int      @default(0)
+  @@unique([source, source_id])
+}
