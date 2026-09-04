@@ -924,6 +924,12 @@ export default function Home() {
     window.history.pushState({}, "", url.toString());
   };
 
+  const handleClearSearch = () => {
+    setQuery("");
+    setResults([]);
+    setSelectedItem(null);
+  };
+
   const fetchWatchlist = async () => {
     try {
       const res = await fetch("/api/watchlist");
@@ -1430,6 +1436,37 @@ export default function Home() {
             </span>
           </a>
 
+          {/* Mobile-only: small section indicator next to WatchDex.
+             Only visible while user is searching. Pressing it returns to
+             the Completed section of the current category. */}
+          {isMobile && isSearching && (
+            <button
+              type="button"
+              onClick={() => {
+                // Close search overlay + clear query; land on Completed section
+                setQuery("");
+                setResults([]);
+                setSelectedItem(null);
+                setShowMobileSearch(false);
+                setActiveSection("Completed");
+                setShowMobileHome(false);
+              }}
+              style={{
+                fontSize: "12px",
+                fontWeight: 600,
+                color: "white",
+                background: "var(--purple-primary)",
+                border: "none",
+                borderRadius: "999px",
+                padding: "4px 10px",
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {category === "tv" ? "TV Shows" : "Anime"}
+            </button>
+          )}
+
           {/* Category tabs - hidden on mobile */}
           {!isMobile && (
             <div style={{ display: "flex", gap: "4px" }}>
@@ -1471,28 +1508,66 @@ export default function Home() {
             gap: "12px",
           }}
         >
-          {/* Search - desktop: text input; mobile: icon button */}
+          {/* Search - desktop: text input with optional Clear (✕); mobile: icon button */}
           {!isMobile && (
-            <input
-              type="text"
-              value={query}
-              onChange={(e) =>
-                handleSearch(e.target.value)
-              }
-              placeholder={`Search ${
-                category === "tv" ? "TV shows" : "anime"
-              }...`}
+            <div
               style={{
+                position: "relative",
                 width: "220px",
-                background: "var(--surface-2)",
-                border: "1px solid var(--border)",
-                borderRadius: "8px",
-                padding: "8px 14px",
-                color: "white",
-                fontSize: "13px",
-                outline: "none",
+                display: "flex",
+                alignItems: "center",
               }}
-            />
+            >
+              <input
+                type="text"
+                value={query}
+                onChange={(e) =>
+                  handleSearch(e.target.value)
+                }
+                placeholder={`Search ${
+                  category === "tv" ? "TV shows" : "anime"
+                }...`}
+                style={{
+                  width: "100%",
+                  background: "var(--surface-2)",
+                  border: "1px solid var(--border)",
+                  borderRadius: "8px",
+                  padding: "8px 32px 8px 14px",
+                  color: "white",
+                  fontSize: "13px",
+                  outline: "none",
+                }}
+              />
+              {query && (
+                <button
+                  type="button"
+                  onClick={handleClearSearch}
+                  aria-label="Clear search"
+                  title="Clear"
+                  style={{
+                    position: "absolute",
+                    right: "6px",
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    width: "20px",
+                    height: "20px",
+                    padding: 0,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "11px",
+                    color: "var(--text-muted)",
+                    background: "var(--surface-3)",
+                    border: "none",
+                    borderRadius: "50%",
+                    cursor: "pointer",
+                    lineHeight: 1,
+                  }}
+                >
+                  ✕
+                </button>
+              )}
+            </div>
           )}
 
           {isMobile && (
@@ -1715,23 +1790,61 @@ export default function Home() {
             padding: "12px 16px",
           }}
         >
-          <input
-            type="text"
-            value={query}
-            onChange={(e) => handleSearch(e.target.value)}
-            placeholder={`Search ${category === "tv" ? "TV shows" : "anime"}...`}
-            autoFocus
+          <div
             style={{
+              position: "relative",
               width: "100%",
-              background: "var(--surface-3)",
-              border: "1px solid var(--purple-primary)",
-              borderRadius: "8px",
-              padding: "10px 14px",
-              color: "white",
-              fontSize: "14px",
-              outline: "none",
+              display: "flex",
+              alignItems: "center",
             }}
-          />
+          >
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => handleSearch(e.target.value)}
+              placeholder={`Search ${category === "tv" ? "TV shows" : "anime"}...`}
+              autoFocus
+              style={{
+                width: "100%",
+                background: "var(--surface-3)",
+                border: "1px solid var(--purple-primary)",
+                borderRadius: "8px",
+                padding: "10px 36px 10px 14px",
+                color: "white",
+                fontSize: "14px",
+                outline: "none",
+              }}
+            />
+            {query && (
+              <button
+                type="button"
+                onClick={handleClearSearch}
+                aria-label="Clear search"
+                title="Clear"
+                style={{
+                  position: "absolute",
+                  right: "8px",
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  width: "22px",
+                  height: "22px",
+                  padding: 0,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: "12px",
+                  color: "var(--text-muted)",
+                  background: "var(--surface)",
+                  border: "1px solid var(--border)",
+                  borderRadius: "50%",
+                  cursor: "pointer",
+                  lineHeight: 1,
+                }}
+              >
+                ✕
+              </button>
+            )}
+          </div>
         </div>
       )}
 
@@ -1833,6 +1946,7 @@ export default function Home() {
                 gap: "16px",
                 paddingBottom: "32px",
               }}
+              onClick={() => setSelectedItem(null)}
             >
               {results.map((item: any) => {
                 const isSelected =
@@ -1869,11 +1983,12 @@ export default function Home() {
                           : "none",
                         cursor: "pointer",
                       }}
-                      onClick={() =>
+                      onClick={(e) => {
+                        e.stopPropagation();
                         setSelectedItem(
                           isSelected ? null : item
-                        )
-                      }
+                        );
+                      }}
                     >
                       <img
                         src={item.poster}
@@ -2001,27 +2116,6 @@ export default function Home() {
                             }}
                           >
                             ✓ Completed
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setSelectedItem(null)
-                            }
-                            style={{
-                              width: "130px",
-                              padding: "8px 0",
-                              fontSize: "12px",
-                              color:
-                                "var(--text-muted)",
-                              background:
-                                "transparent",
-                              border:
-                                "1px solid var(--border)",
-                              borderRadius: "8px",
-                              cursor: "pointer",
-                            }}
-                          >
-                            ✕ Cancel
                           </button>
                         </div>
                       )}
