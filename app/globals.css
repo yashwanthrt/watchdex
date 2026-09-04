@@ -62,3 +62,67 @@ img {
   max-width: 100%;
   height: auto;
 }
+
+/* Mobile-only: prevent horizontal scrolling on the page.
+   Desktop layout is unaffected because these rules only
+   apply at viewports below 768px. */
+@media (max-width: 767px) {
+  html,
+  body {
+    overflow-x: hidden;
+    max-width: 100vw;
+    width: 100%;
+  }
+
+  /* Constrain the main container to viewport width */
+  main {
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
+
+  /* Section card grids: 2-column vertical grid.
+     Override desktop inline styles with !important. */
+  section > div {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 12px !important;
+    overflow-x: hidden !important;
+    flex-wrap: unset !important;
+    /* Reset any explicit width/height from desktop */
+    width: 100% !important;
+    min-width: unset !important;
+    max-width: 100% !important;
+  }
+
+  /* Card: constrain to fill its grid cell */
+  section > div > div {
+    width: 100% !important;
+    min-width: unset !important;
+    max-width: 100% !important;
+    flex-shrink: unset !important;
+    flex-basis: unset !important;
+  }
+
+  /* Poster images: scale down to fill 2-column grid */
+  section > div img {
+    width: 100% !important;
+    min-width: unset !important;
+    max-width: 100% !important;
+    height: auto !important;
+    aspect-ratio: 2/3 !important;
+  }
+
+  /* Status section filter buttons: 2 columns, 2 rows.
+     Desktop layout is unaffected. */
+  .status-buttons-container {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    grid-template-rows: auto auto !important;
+    gap: 8px !important;
+    margin-top: 32px !important;
+    flex-wrap: unset !important;
+  }
+  .status-buttons-container > * {
+    width: 100% !important;
+  }
+}

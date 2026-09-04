@@ -5,6 +5,18 @@ import { useState, useEffect, useRef } from "react";
 const POSTER_W = 160;
 const POSTER_H = 240;
 
+// Mobile detection hook
+function useIsMobile(breakpoint = 768) {
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < breakpoint);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, [breakpoint]);
+  return isMobile;
+}
+
 function ProgressBar({
   watched,
   total,
@@ -43,7 +55,9 @@ function WatchCard({
   onDelete,
   onSetEpisode,
   onDrop,
+  onStartWatching,
   showEpDiff = false,
+  section,
   dragging = false,
   onDragStart,
   onDragOver,
@@ -56,7 +70,10 @@ function WatchCard({
   onDelete: (id: number) => void;
   onSetEpisode: (id: number, ep: number) => void;
   onDrop: (id: number) => void;
+  onStartWatching: (id: number) => void;
   showEpDiff?: boolean;
+  // "Completed" | "Watchlist" | "Ongoing" | "Dropped" — controls which actions are shown
+  section?: "Completed" | "Watchlist" | "Ongoing" | "Dropped";
   dragging?: boolean;
   onDragStart: () => void;
   onDragOver: () => void;
@@ -196,70 +213,174 @@ function WatchCard({
           style={{ background: "rgba(10,10,20,0.92)", pointerEvents: dragging ? "none" : (isTouch ? (overlayOpen ? "auto" : "none") : "auto") }}
           onClick={(e) => e.stopPropagation()}
         >
-          <div
-            className="flex items-center gap-1"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <input
-              className="no-spin"
-              type="number"
-              min="0"
-              value={epInput}
-              onChange={(e) => {
-                const val = e.target.value;
-                // Strip leading zero(s) — typing a digit when value is "0" replaces it
-                const next = epInput === "0" && val.startsWith("0")
-                  ? val.replace(/^0+/, "") || "0"
-                  : val;
-                setEpInput(next);
-              }}
-              style={{
-                width: "52px",
-                padding: "4px 0",
-                fontSize: "12px",
-                textAlign: "center",
-                color: "white",
-                background: "var(--surface-3)",
-                border:
-                  "1px solid var(--purple-primary)",
-                borderRadius: "8px",
-                outline: "none",
-                appearance: "textfield",
-              }}
-            />
+          {/* Episode controls — only for Ongoing section */}
+          {section === "Ongoing" && (
+            <div
+              className="flex items-center gap-1"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <input
+                className="no-spin"
+                type="number"
+                min="0"
+                value={epInput}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  const next = epInput === "0" && val.startsWith("0")
+                    ? val.replace(/^0+/, "") || "0"
+                    : val;
+                  setEpInput(next);
+                }}
+                style={{
+                  width: "52px",
+                  padding: "4px 0",
+                  fontSize: "12px",
+                  textAlign: "center",
+                  color: "white",
+                  background: "var(--surface-3)",
+                  border:
+                    "1px solid var(--purple-primary)",
+                  borderRadius: "8px",
+                  outline: "none",
+                  appearance: "textfield",
+                }}
+              />
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const val = parseInt(epInput);
+                  if (!isNaN(val) && val >= 0) {
+                    onSetEpisode(show.id, val);
+                    if (isTouch) closeOverlay();
+                  }
+                }}
+                style={{
+                  padding: "4px 10px",
+                  fontSize: "11px",
+                  fontWeight: 600,
+                  color: "white",
+                  background: "var(--purple-primary)",
+                  border: "none",
+                  borderRadius: "8px",
+                  cursor: "pointer",
+                }}
+              >
+                Set
+              </button>
+            </div>
+          )}
+
+          {/* Completed section: only Remove */}
+          {section === "Completed" && (
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                const val = parseInt(epInput);
-                if (!isNaN(val) && val >= 0) {
-                  onSetEpisode(show.id, val);
+                onDelete(show.id);
+                if (isTouch) closeOverlay();
+              }}
+              style={{
+                width: "120px",
+                padding: "6px 0",
+                fontSize: "11px",
+                fontWeight: 600,
+                color: "white",
+                background: "#b91c1c",
+                border: "none",
+                borderRadius: "8px",
+                cursor: "pointer",
+              }}
+            >
+              ✕ Remove
+            </button>
+          )}
+
+          {/* Watchlist section: Complete + Ongoing */}
+          {section === "Watchlist" && (
+            <>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onComplete(show.id);
                   if (isTouch) closeOverlay();
-                }
-              }}
-              style={{
-                padding: "4px 10px",
-                fontSize: "11px",
-                fontWeight: 600,
-                color: "white",
-                background: "var(--purple-primary)",
-                border: "none",
-                borderRadius: "8px",
-                cursor: "pointer",
-              }}
-            >
-              Set
-            </button>
-          </div>
+                }}
+                style={{
+                  width: "120px",
+                  padding: "6px 0",
+                  fontSize: "11px",
+                  fontWeight: 600,
+                  color: "white",
+                  background: "#16a34a",
+                  border: "none",
+                  borderRadius: "8px",
+                  cursor: "pointer",
+                }}
+              >
+                ✓ Complete
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onStartWatching(show.id);
+                  if (isTouch) closeOverlay();
+                }}
+                style={{
+                  width: "120px",
+                  padding: "6px 0",
+                  fontSize: "11px",
+                  fontWeight: 600,
+                  color: "white",
+                  background: "var(--purple-primary)",
+                  border: "none",
+                  borderRadius: "8px",
+                  cursor: "pointer",
+                }}
+              >
+                ▶ Ongoing
+              </button>
+            </>
+          )}
 
-          {(show.watch_status !== "completed" ||
-            show.episodes_watched <
-              show.total_episodes) && (
+          {/* Ongoing section: Complete (if not fully watched) + ongoing progress indicator */}
+          {section === "Ongoing" && (
+            <>
+              {(show.watch_status !== "completed" ||
+                show.episodes_watched < show.total_episodes) && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onComplete(show.id);
+                    if (isTouch) closeOverlay();
+                  }}
+                  style={{
+                    width: "120px",
+                    padding: "6px 0",
+                    fontSize: "11px",
+                    fontWeight: 600,
+                    color: "white",
+                    background: "#16a34a",
+                    border: "none",
+                    borderRadius: "8px",
+                    cursor: "pointer",
+                  }}
+                >
+                  ✓ Complete
+                </button>
+              )}
+            </>
+          )}
+
+          {/* Dropped section: Remove */}
+          {section === "Dropped" && (
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                onComplete(show.id);
+                onDelete(show.id);
                 if (isTouch) closeOverlay();
               }}
               style={{
@@ -268,61 +389,15 @@ function WatchCard({
                 fontSize: "11px",
                 fontWeight: 600,
                 color: "white",
-                background: "#16a34a",
+                background: "#b91c1c",
                 border: "none",
                 borderRadius: "8px",
                 cursor: "pointer",
               }}
             >
-              ✓ Complete
+              ✕ Remove
             </button>
           )}
-
-          {show.watch_status !== "dropped" && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onDrop(show.id);
-                if (isTouch) closeOverlay();
-              }}
-              style={{
-                width: "120px",
-                padding: "6px 0",
-                fontSize: "11px",
-                fontWeight: 600,
-                color: "white",
-                background: "#b45309",
-                border: "none",
-                borderRadius: "8px",
-                cursor: "pointer",
-              }}
-            >
-              ↓ Drop
-            </button>
-          )}
-
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete(show.id);
-              if (isTouch) closeOverlay();
-            }}
-            style={{
-              width: "120px",
-              padding: "6px 0",
-              fontSize: "11px",
-              fontWeight: 600,
-              color: "white",
-              background: "#b91c1c",
-              border: "none",
-              borderRadius: "8px",
-              cursor: "pointer",
-            }}
-          >
-            ✕ Remove
-          </button>
         </div>
       </div>
 
@@ -798,6 +873,7 @@ function DetailPanel({
 }
 
 export default function Home() {
+  const isMobile = useIsMobile();
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("tv");
   const [results, setResults] = useState<any[]>([]);
@@ -817,6 +893,8 @@ export default function Home() {
   const [draggingId, setDraggingId] = useState<number | null>(null);
   const [selectedCardId, setSelectedCardId] = useState<number | null>(null);
   const [activeSection, setActiveSection] = useState("Completed");
+  const [showMobileHome, setShowMobileHome] = useState(true);
+  const [showMobileSearch, setShowMobileSearch] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(
@@ -825,10 +903,26 @@ export default function Home() {
     const cat = params.get("category");
     if (cat === "anime" || cat === "tv") {
       setCategory(cat);
+      setShowMobileHome(false);
+    } else {
+      setShowMobileHome(true);
     }
   }, []);
 
   const isSearching = query.trim().length > 0;
+
+  const handleCategoryChange = (cat: string) => {
+    setCategory(cat);
+    setResults([]);
+    setQuery("");
+    setSelectedItem(null);
+    setActiveSection("Completed");
+    setShowMobileHome(false);
+    // Update URL so a refresh lands on the right page
+    const url = new URL(window.location.href);
+    url.searchParams.set("category", cat);
+    window.history.pushState({}, "", url.toString());
+  };
 
   const fetchWatchlist = async () => {
     try {
@@ -952,6 +1046,30 @@ export default function Home() {
 
   const handleAdd = async (status: string) => {
     if (!selectedItem) return;
+    // Check if already in watchlist — update status instead of adding
+    const existing = watchlist.find(
+      (s) =>
+        s.source === selectedItem.source &&
+        String(s.source_id) === String(selectedItem.id)
+    );
+    if (existing) {
+      // Update existing entry's status
+      try {
+        await fetch(`/api/watchlist/${existing.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            watch_status: status,
+            episodes_watched: status === "watching" ? 0 : existing.episodes_watched,
+          }),
+        });
+        setSelectedItem(null);
+        fetchWatchlist();
+      } catch (error) {
+        console.error(error);
+      }
+      return;
+    }
     try {
       const res = await fetch("/api/add-show", {
         method: "POST",
@@ -1068,6 +1186,19 @@ export default function Home() {
     }
   };
 
+  const handleStartWatching = async (id: number) => {
+    try {
+      await fetch(`/api/watchlist/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ watch_status: "watching", episodes_watched: 0 }),
+      });
+      fetchWatchlist();
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
   const handleDelete = async (id: number) => {
     try {
       await fetch(`/api/watchlist/${id}`, {
@@ -1128,7 +1259,8 @@ export default function Home() {
     title: string,
     list: any[],
     showEpDiff = false,
-    emptyMessage?: string
+    emptyMessage?: string,
+    section?: "Completed" | "Watchlist" | "Ongoing" | "Dropped"
   ) => (
     <section style={{ marginTop: "48px" }}>
       <h2
@@ -1189,7 +1321,9 @@ export default function Home() {
             onDelete={handleDelete}
             onSetEpisode={handleSetEpisode}
             onDrop={handleDropStatus}
+            onStartWatching={handleStartWatching}
             showEpDiff={showEpDiff}
+            section={section}
             dragging={draggingId === show.id}
             isSelected={selectedCardId === show.id}
             onDragStart={() => {
@@ -1262,7 +1396,19 @@ export default function Home() {
           }}
         >
           <a
-            href={`/?category=${category}`}
+            href="#"
+            onClick={(e) => {
+              e.preventDefault();
+              if (isMobile) {
+                setShowMobileHome(true);
+                setShowMobileSearch(false);
+                const url = new URL(window.location.href);
+                url.searchParams.delete("category");
+                window.history.pushState({}, "", url.toString());
+              } else {
+                window.location.href = `/?category=${category}`;
+              }
+            }}
             style={{
               textDecoration: "none",
               color: "inherit",
@@ -1284,42 +1430,38 @@ export default function Home() {
             </span>
           </a>
 
-          {/* Category tabs */}
-          <div style={{ display: "flex", gap: "4px" }}>
-            {["tv", "anime"].map((cat) => (
-              <button
-                key={cat}
-                type="button"
-                onClick={() => {
-                  setCategory(cat);
-                  setResults([]);
-                  setQuery("");
-                  setSelectedItem(null);
-                  setActiveSection("Completed");
-                }}
-                style={{
-                  padding: "6px 16px",
-                  fontSize: "13px",
-                  fontWeight:
-                    category === cat ? 700 : 400,
-                  color:
-                    category === cat
-                      ? "white"
-                      : "var(--text-muted)",
-                  background:
-                    category === cat
-                      ? "var(--purple-primary)"
-                      : "transparent",
-                  border: "none",
-                  borderRadius: "8px",
-                  cursor: "pointer",
-                  transition: "all 0.2s",
-                }}
-              >
-                {cat === "tv" ? "TV Shows" : "Anime"}
-              </button>
-            ))}
-          </div>
+          {/* Category tabs - hidden on mobile */}
+          {!isMobile && (
+            <div style={{ display: "flex", gap: "4px" }}>
+              {["tv", "anime"].map((cat) => (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => handleCategoryChange(cat)}
+                  style={{
+                    padding: "6px 16px",
+                    fontSize: "13px",
+                    fontWeight:
+                      category === cat ? 700 : 400,
+                    color:
+                      category === cat
+                        ? "white"
+                        : "var(--text-muted)",
+                    background:
+                      category === cat
+                        ? "var(--purple-primary)"
+                        : "transparent",
+                    border: "none",
+                    borderRadius: "8px",
+                    cursor: "pointer",
+                    transition: "all 0.2s",
+                  }}
+                >
+                  {cat === "tv" ? "TV Shows" : "Anime"}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <div
@@ -1329,27 +1471,51 @@ export default function Home() {
             gap: "12px",
           }}
         >
-          {/* Search */}
-          <input
-            type="text"
-            value={query}
-            onChange={(e) =>
-              handleSearch(e.target.value)
-            }
-            placeholder={`Search ${
-              category === "tv" ? "TV shows" : "anime"
-            }...`}
-            style={{
-              width: "220px",
-              background: "var(--surface-2)",
-              border: "1px solid var(--border)",
-              borderRadius: "8px",
-              padding: "8px 14px",
-              color: "white",
-              fontSize: "13px",
-              outline: "none",
-            }}
-          />
+          {/* Search - desktop: text input; mobile: icon button */}
+          {!isMobile && (
+            <input
+              type="text"
+              value={query}
+              onChange={(e) =>
+                handleSearch(e.target.value)
+              }
+              placeholder={`Search ${
+                category === "tv" ? "TV shows" : "anime"
+              }...`}
+              style={{
+                width: "220px",
+                background: "var(--surface-2)",
+                border: "1px solid var(--border)",
+                borderRadius: "8px",
+                padding: "8px 14px",
+                color: "white",
+                fontSize: "13px",
+                outline: "none",
+              }}
+            />
+          )}
+
+          {isMobile && (
+            <button
+              type="button"
+              onClick={() => setShowMobileSearch((p) => !p)}
+              aria-label="Search"
+              style={{
+                background: "var(--surface-2)",
+                border: "1px solid var(--border)",
+                borderRadius: "10px",
+                padding: "8px 12px",
+                cursor: "pointer",
+                fontSize: "18px",
+                color: "white",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              🔍
+            </button>
+          )}
 
           {/* Notification Bell */}
           <div style={{ position: "relative" }}>
@@ -1540,11 +1706,99 @@ export default function Home() {
         </div>
       </nav>
 
+      {/* Mobile search bar - shown when search icon is tapped */}
+      {isMobile && showMobileSearch && (
+        <div
+          style={{
+            background: "var(--surface-2)",
+            borderBottom: "1px solid var(--border)",
+            padding: "12px 16px",
+          }}
+        >
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => handleSearch(e.target.value)}
+            placeholder={`Search ${category === "tv" ? "TV shows" : "anime"}...`}
+            autoFocus
+            style={{
+              width: "100%",
+              background: "var(--surface-3)",
+              border: "1px solid var(--purple-primary)",
+              borderRadius: "8px",
+              padding: "10px 14px",
+              color: "white",
+              fontSize: "14px",
+              outline: "none",
+            }}
+          />
+        </div>
+      )}
+
+      {/* Mobile homepage overlay - TV Shows / Anime selection */}
+      {isMobile && showMobileHome && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            top: "64px", // below navbar
+            background: "var(--background)",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "16px",
+            zIndex: 50,
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => handleCategoryChange("tv")}
+            style={{
+              width: "80%",
+              maxWidth: "320px",
+              padding: "20px",
+              fontSize: "18px",
+              fontWeight: 700,
+              color: "white",
+              background: "var(--purple-primary)",
+              border: "none",
+              borderRadius: "16px",
+              cursor: "pointer",
+              transition: "transform 0.2s",
+            }}
+          >
+            📺 TV Shows
+          </button>
+          <button
+            type="button"
+            onClick={() => handleCategoryChange("anime")}
+            style={{
+              width: "80%",
+              maxWidth: "320px",
+              padding: "20px",
+              fontSize: "18px",
+              fontWeight: 700,
+              color: "white",
+              background: "var(--purple-primary)",
+              border: "none",
+              borderRadius: "16px",
+              cursor: "pointer",
+              transition: "transform 0.2s",
+            }}
+          >
+            🎌 Anime
+          </button>
+        </div>
+      )}
+
       <div
         style={{
           maxWidth: "1400px",
           margin: "0 auto",
           padding: "0 24px",
+          // On mobile, hide the main content when the home overlay is shown
+          display: isMobile && showMobileHome ? "none" : undefined,
         }}
       >
         {loading && (
@@ -1632,6 +1886,40 @@ export default function Home() {
                           objectFit: "cover",
                         }}
                       />
+
+                      {/* Small subtle Drop icon in bottom-right corner — only shown when poster is selected */}
+                      {isSelected && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleAdd("dropped");
+                          }}
+                          aria-label="Drop"
+                          title="Drop"
+                          style={{
+                            position: "absolute",
+                            bottom: "4px",
+                            right: "4px",
+                            width: "20px",
+                            height: "20px",
+                            padding: 0,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            fontSize: "10px",
+                            color: "white",
+                            background: "rgba(180,83,9,0.85)",
+                            border: "none",
+                            borderRadius: "50%",
+                            cursor: "pointer",
+                            zIndex: 5,
+                            lineHeight: 1,
+                          }}
+                        >
+                          ↓
+                        </button>
+                      )}
 
                       {isSelected && (
                         <div
@@ -1851,6 +2139,7 @@ export default function Home() {
           {!watchlistLoading && hasAny && (
               <>
                 <div
+                  className="status-buttons-container"
                   style={{
                     display: "flex",
                     gap: "8px",
@@ -1912,23 +2201,24 @@ export default function Home() {
 
                 {activeSection === "Completed" &&
                   completed.length > 0 &&
-                  renderSection("Completed", completed)}
+                  renderSection("Completed", completed, false, undefined, "Completed")}
 
                 {activeSection === "Ongoing" &&
                   watching.length > 0 &&
-                  renderSection("Ongoing", watching, true)}
+                  renderSection("Ongoing", watching, true, undefined, "Ongoing")}
 
                 {activeSection === "Watchlist" &&
                   renderSection(
                     "Watchlist",
                     planned,
                     false,
-                    "No items in your watchlist yet. Use the bookmark button on search results to add shows."
+                    "No items in your watchlist yet. Use the bookmark button on search results to add shows.",
+                    "Watchlist"
                   )}
 
                 {activeSection === "Dropped" &&
                   dropped.length > 0 &&
-                  renderSection("Dropped", dropped)}
+                  renderSection("Dropped", dropped, false, undefined, "Dropped")}
               </>
             )}
             </>
