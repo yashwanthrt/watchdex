@@ -67,15 +67,81 @@ function WatchCard({
   const [epInput, setEpInput] = useState(
     String(show.episodes_watched)
   );
+  const [overlayOpen, setOverlayOpen] = useState(false);
+  const [isTouch, setIsTouch] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  // Reset overlay when the show changes
+  useEffect(() => {
+    setOverlayOpen(false);
+  }, [show.id]);
   const epDiff =
     show.total_episodes > 0
       ? show.total_episodes - show.episodes_watched
       : null;
 
+  useEffect(() => {
+    const mq = window.matchMedia("(hover: none)");
+    setIsTouch(mq.matches);
+    const handler = (e: MediaQueryListEvent) =>
+      setIsTouch(e.matches);
+    mq.addEventListener("change", handler);
+    return () =>
+      mq.removeEventListener("change", handler);
+  }, []);
+
+  const overlayVisible = isTouch
+    ? overlayOpen
+    : undefined; // hover handles desktop via CSS
+
+  // Close overlay when tapping outside the card (touch only)
+  useEffect(() => {
+    if (!isTouch || !overlayOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (cardRef.current && !cardRef.current.contains(e.target as Node)) {
+        setOverlayOpen(false);
+      }
+    };
+    document.addEventListener("click", handler);
+    return () => document.removeEventListener("click", handler);
+  }, [isTouch, overlayOpen]);
+
+  const handlePosterClick = () => {
+    if (isTouch) {
+      if (overlayOpen) {
+        setOverlayOpen(false);
+        onClick();
+      } else {
+        setOverlayOpen(true);
+      }
+    } else {
+      onClick();
+    }
+  };
+
+  const closeOverlay = () => setOverlayOpen(false);
+
+  const handleDragStart = () => {
+    closeOverlay();
+    onDragStart();
+  };
+
   return (
+    <>
+      <style>{`
+        .no-spin::-webkit-outer-spin-button,
+        .no-spin::-webkit-inner-spin-button {
+          -webkit-appearance: none;
+          margin: 0;
+        }
+        .no-spin {
+          -moz-appearance: textfield;
+        }
+      `}</style>
     <div
+      ref={cardRef}
       draggable
-      onDragStart={onDragStart}
+      onDragStart={handleDragStart}
       onDragOver={(e) => {
         e.preventDefault();
         onDragOver();
@@ -109,7 +175,7 @@ function WatchCard({
         <img
           src={show.poster_url}
           alt={show.title}
-          onClick={onClick}
+          onClick={handlePosterClick}
           style={{
             width: `${POSTER_W}px`,
             height: `${POSTER_H}px`,
@@ -120,8 +186,14 @@ function WatchCard({
           }}
         />
         <div
-          className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex flex-col items-center justify-center gap-2"
-          style={{ background: "rgba(10,10,20,0.92)", pointerEvents: dragging ? "none" : "auto" }}
+          className={`absolute inset-0 flex flex-col items-center justify-center gap-2 transition-opacity duration-200 ${
+            isTouch
+              ? overlayOpen
+                ? "opacity-100"
+                : "opacity-0 pointer-events-none"
+              : "opacity-0 group-hover:opacity-100"
+          }`}
+          style={{ background: "rgba(10,10,20,0.92)", pointerEvents: dragging ? "none" : (isTouch ? (overlayOpen ? "auto" : "none") : "auto") }}
           onClick={(e) => e.stopPropagation()}
         >
           <div
@@ -129,22 +201,30 @@ function WatchCard({
             onClick={(e) => e.stopPropagation()}
           >
             <input
+              className="no-spin"
               type="number"
               min="0"
               value={epInput}
-              onChange={(e) =>
-                setEpInput(e.target.value)
-              }
+              onChange={(e) => {
+                const val = e.target.value;
+                // Strip leading zero(s) — typing a digit when value is "0" replaces it
+                const next = epInput === "0" && val.startsWith("0")
+                  ? val.replace(/^0+/, "") || "0"
+                  : val;
+                setEpInput(next);
+              }}
               style={{
                 width: "52px",
-                padding: "4px 6px",
+                padding: "4px 0",
                 fontSize: "12px",
+                textAlign: "center",
                 color: "white",
                 background: "var(--surface-3)",
                 border:
                   "1px solid var(--purple-primary)",
                 borderRadius: "8px",
                 outline: "none",
+                appearance: "textfield",
               }}
             />
             <button
@@ -154,6 +234,7 @@ function WatchCard({
                 const val = parseInt(epInput);
                 if (!isNaN(val) && val >= 0) {
                   onSetEpisode(show.id, val);
+                  if (isTouch) closeOverlay();
                 }
               }}
               style={{
@@ -179,6 +260,7 @@ function WatchCard({
               onClick={(e) => {
                 e.stopPropagation();
                 onComplete(show.id);
+                if (isTouch) closeOverlay();
               }}
               style={{
                 width: "120px",
@@ -202,6 +284,7 @@ function WatchCard({
               onClick={(e) => {
                 e.stopPropagation();
                 onDrop(show.id);
+                if (isTouch) closeOverlay();
               }}
               style={{
                 width: "120px",
@@ -224,6 +307,7 @@ function WatchCard({
             onClick={(e) => {
               e.stopPropagation();
               onDelete(show.id);
+              if (isTouch) closeOverlay();
             }}
             style={{
               width: "120px",
@@ -317,6 +401,7 @@ function WatchCard({
         </div>
       </div>
     </div>
+    </>
   );
 }
 
@@ -900,6 +985,48 @@ export default function Home() {
     }
   };
 
+  const handleToggleWatchlist = async (item: any) => {
+    const existing = watchlist.find(
+      (s) =>
+        s.source === item.source &&
+        String(s.source_id) === String(item.id)
+    );
+    if (existing) {
+      // Remove from watchlist
+      try {
+        await fetch(`/api/watchlist/${existing.id}`, {
+          method: "DELETE",
+        });
+        fetchWatchlist();
+      } catch (error) {
+        console.error(error);
+      }
+    } else {
+      // Add to watchlist (planned status)
+      try {
+        await fetch("/api/add-show", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            id: item.id,
+            title: item.title,
+            poster: item.poster,
+            type: item.type,
+            source: item.source,
+            status: item.status,
+            watch_status: "planned",
+            totalEpisodes: item.totalEpisodes || 0,
+          }),
+        });
+        fetchWatchlist();
+      } catch (error) {
+        console.error(error);
+      }
+    }
+  };
+
   const handleSetEpisode = async (
     id: number,
     ep: number
@@ -987,10 +1114,21 @@ export default function Home() {
     planned.length > 0 ||
     dropped.length > 0;
 
+  // Auto-select the first non-empty section whenever the watchlist data changes
+  useEffect(() => {
+    if (watchlistLoading) return;
+    if (completed.length > 0 && activeSection !== "Completed") setActiveSection("Completed");
+    else if (watching.length > 0 && activeSection === "Completed" && completed.length === 0) setActiveSection("Ongoing");
+    else if (planned.length > 0 && activeSection === "Completed" && completed.length === 0 && watching.length === 0) setActiveSection("Watchlist");
+    else if (dropped.length > 0 && activeSection === "Completed" && completed.length === 0 && watching.length === 0 && planned.length === 0) setActiveSection("Dropped");
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watchlistLoading, completed.length, watching.length, planned.length, dropped.length]);
+
   const renderSection = (
     title: string,
     list: any[],
-    showEpDiff = false
+    showEpDiff = false,
+    emptyMessage?: string
   ) => (
     <section style={{ marginTop: "48px" }}>
       <h2
@@ -1027,6 +1165,22 @@ export default function Home() {
           gap: "16px",
         }}
       >
+        {list.length === 0 && emptyMessage ? (
+          <div
+            style={{
+              width: "100%",
+              padding: "40px 20px",
+              textAlign: "center",
+              color: "var(--text-muted)",
+              fontSize: "14px",
+              border: "1px dashed var(--border)",
+              borderRadius: "12px",
+              background: "var(--surface-2)",
+            }}
+          >
+            {emptyMessage}
+          </div>
+        ) : null}
         {list.map((show: any) => (
           <WatchCard
             key={show.id}
@@ -1086,15 +1240,15 @@ export default function Home() {
       {/* Netflix-style top navbar */}
       <nav
         style={{
-          position: "sticky",
-          top: 0,
+          position: "relative",
           zIndex: 100,
+          display: "flex",
+
           background:
             "linear-gradient(180deg, rgba(10,10,15,0.98) 0%, rgba(10,10,15,0.85) 100%)",
           backdropFilter: "blur(12px)",
           borderBottom: "1px solid var(--border)",
           padding: "0 24px",
-          display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
           height: "64px",
@@ -1141,6 +1295,7 @@ export default function Home() {
                   setResults([]);
                   setQuery("");
                   setSelectedItem(null);
+                  setActiveSection("Completed");
                 }}
                 style={{
                   padding: "6px 16px",
@@ -1430,6 +1585,11 @@ export default function Home() {
                   selectedItem?.id === item.id &&
                   selectedItem?.source ===
                     item.source;
+                const isInWatchlist = watchlist.some(
+                  (s) =>
+                    s.source === item.source &&
+                    String(s.source_id) === String(item.id)
+                );
 
                 return (
                   <div
@@ -1438,14 +1598,9 @@ export default function Home() {
                       width: `${POSTER_W}px`,
                       flexShrink: 0,
                       position: "relative",
-                      cursor: "pointer",
                     }}
-                    onClick={() =>
-                      setSelectedItem(
-                        isSelected ? null : item
-                      )
-                    }
                   >
+                    {/* Card body - clickable to select */}
                     <div
                       style={{
                         width: `${POSTER_W}px`,
@@ -1458,7 +1613,13 @@ export default function Home() {
                         boxShadow: isSelected
                           ? "0 0 20px var(--purple-glow)"
                           : "none",
+                        cursor: "pointer",
                       }}
+                      onClick={() =>
+                        setSelectedItem(
+                          isSelected ? null : item
+                        )
+                      }
                     >
                       <img
                         src={item.poster}
@@ -1492,7 +1653,7 @@ export default function Home() {
                           <button
                             type="button"
                             onClick={() =>
-                              handleAdd("planned")
+                              handleToggleWatchlist(item)
                             }
                             style={{
                               width: "130px",
@@ -1500,15 +1661,19 @@ export default function Home() {
                               fontSize: "12px",
                               fontWeight: 600,
                               color: "white",
-                              background:
-                                "var(--surface-3)",
-                              border:
-                                "1px solid var(--border)",
+                              background: isInWatchlist
+                                ? "rgba(167,139,250,0.15)"
+                                : "var(--surface-3)",
+                              border: isInWatchlist
+                                ? "1px solid var(--purple-primary)"
+                                : "1px solid var(--border)",
                               borderRadius: "8px",
                               cursor: "pointer",
                             }}
                           >
-                            + Watchlist
+                            {isInWatchlist
+                              ? "🔖 In Watchlist"
+                              : "+ Watchlist"}
                           </button>
                           <button
                             type="button"
@@ -1695,11 +1860,10 @@ export default function Home() {
                 >
                   {[
                     { key: "Completed", list: completed },
-                    { key: "Ongoing", list: watching },
                     { key: "Watchlist", list: planned },
+                    { key: "Ongoing", list: watching },
                     { key: "Dropped", list: dropped },
                   ]
-                    .filter((s) => s.list.length > 0)
                     .map((s) => (
                       <button
                         key={s.key}
@@ -1755,8 +1919,12 @@ export default function Home() {
                   renderSection("Ongoing", watching, true)}
 
                 {activeSection === "Watchlist" &&
-                  planned.length > 0 &&
-                  renderSection("Watchlist", planned)}
+                  renderSection(
+                    "Watchlist",
+                    planned,
+                    false,
+                    "No items in your watchlist yet. Use the bookmark button on search results to add shows."
+                  )}
 
                 {activeSection === "Dropped" &&
                   dropped.length > 0 &&
