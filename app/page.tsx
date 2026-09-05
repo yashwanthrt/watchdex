@@ -937,6 +937,7 @@ export default function Home() {
     setResults([]);
     setSelectedItem(null);
     setActiveSection(lastAddedSection);
+    setShowMobileSearch(false);
   };
 
   const fetchWatchlist = async () => {
