@@ -15,7 +15,10 @@ export async function POST(req: Request) {
         poster_url: body.poster,
         type: body.type,
         total_episodes: totalEpisodes,
-        episodes_watched: 0,
+        episodes_watched:
+          body.watch_status === "completed"
+            ? totalEpisodes
+            : body.episodes_watched || 0,
         watch_status: body.watch_status || "planned",
         is_completed: body.watch_status === "completed",
         release_status: body.status || null,

@@ -224,6 +224,12 @@ function WatchCard({
                 type="number"
                 min="0"
                 value={epInput}
+                onFocus={() => {
+                  if (epInput === "0") setEpInput("");
+                }}
+                onBlur={(e) => {
+                  if (epInput === "") setEpInput("0");
+                }}
                 onChange={(e) => {
                   const val = e.target.value;
                   const next = epInput === "0" && val.startsWith("0")
@@ -895,6 +901,8 @@ export default function Home() {
   const [activeSection, setActiveSection] = useState("Completed");
   const [showMobileHome, setShowMobileHome] = useState(true);
   const [showMobileSearch, setShowMobileSearch] = useState(false);
+  const [lastAddedSection, setLastAddedSection] =
+    useState("Completed");
 
   useEffect(() => {
     const params = new URLSearchParams(
@@ -928,6 +936,7 @@ export default function Home() {
     setQuery("");
     setResults([]);
     setSelectedItem(null);
+    setActiveSection(lastAddedSection);
   };
 
   const fetchWatchlist = async () => {
@@ -989,6 +998,7 @@ export default function Home() {
       setQuery("");
       setResults([]);
       setSelectedItem(null);
+      setActiveSection(lastAddedSection);
     };
     document.addEventListener("click", handler);
     return () =>
@@ -1089,10 +1099,24 @@ export default function Home() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             watch_status: status,
-            episodes_watched: status === "watching" ? 0 : existing.episodes_watched,
+            episodes_watched:
+              status === "completed"
+                ? existing.total_episodes || 0
+                : status === "watching"
+                  ? 0
+                  : existing.episodes_watched,
           }),
         });
         setSelectedItem(null);
+        setLastAddedSection(
+          status === "completed"
+            ? "Completed"
+            : status === "watching"
+              ? "Ongoing"
+              : status === "planned"
+                ? "Watchlist"
+                : "Dropped"
+        );
         fetchWatchlist();
       } catch (error) {
         console.error(error);
@@ -1115,6 +1139,10 @@ export default function Home() {
           watch_status: status,
           totalEpisodes:
             selectedItem.totalEpisodes || 0,
+          episodes_watched:
+            status === "completed"
+              ? selectedItem.totalEpisodes || 0
+              : 0,
         }),
       });
       const data = await res.json();
@@ -1124,6 +1152,15 @@ export default function Home() {
         alert("Failed to add show");
       } else {
         setSelectedItem(null);
+        setLastAddedSection(
+          status === "completed"
+            ? "Completed"
+            : status === "watching"
+              ? "Ongoing"
+              : status === "planned"
+                ? "Watchlist"
+                : "Dropped"
+        );
         fetchWatchlist();
       }
     } catch (error) {
@@ -1573,6 +1610,7 @@ export default function Home() {
                   setResults([]);
                   setSelectedItem(null);
                   setShowMobileSearch(false);
+                  setActiveSection(lastAddedSection);
                 } else {
                   setShowMobileSearch(true);
                 }
