@@ -972,6 +972,29 @@ export default function Home() {
       document.removeEventListener("click", handler);
   }, [showNotifications]);
 
+  // Mobile search: close when the user clicks anywhere outside
+  // the search input/clear button (e.g. status buttons, posters, etc.).
+  // Closing the search bar also clears the query and results so the
+  // user returns to the normal section view.
+  useEffect(() => {
+    if (!isMobile || !showMobileSearch) return;
+    const handler = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+      // Don't close when interacting with the search bar elements
+      if (target.closest("[data-mobile-search-area]")) return;
+      if (target.closest("[data-mobile-search-toggle]")) return;
+      // Close the search bar and clear results
+      setShowMobileSearch(false);
+      setQuery("");
+      setResults([]);
+      setSelectedItem(null);
+    };
+    document.addEventListener("click", handler);
+    return () =>
+      document.removeEventListener("click", handler);
+  }, [isMobile, showMobileSearch]);
+
   const handleDragEnd = async (list: any[]) => {
     setDraggingId(null);
     if (
@@ -1436,37 +1459,6 @@ export default function Home() {
             </span>
           </a>
 
-          {/* Mobile-only: small section indicator next to WatchDex.
-             Only visible while user is searching. Pressing it returns to
-             the Completed section of the current category. */}
-          {isMobile && isSearching && (
-            <button
-              type="button"
-              onClick={() => {
-                // Close search overlay + clear query; land on Completed section
-                setQuery("");
-                setResults([]);
-                setSelectedItem(null);
-                setShowMobileSearch(false);
-                setActiveSection("Completed");
-                setShowMobileHome(false);
-              }}
-              style={{
-                fontSize: "12px",
-                fontWeight: 600,
-                color: "white",
-                background: "var(--purple-primary)",
-                border: "none",
-                borderRadius: "999px",
-                padding: "4px 10px",
-                cursor: "pointer",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {category === "tv" ? "TV Shows" : "Anime"}
-            </button>
-          )}
-
           {/* Category tabs - hidden on mobile */}
           {!isMobile && (
             <div style={{ display: "flex", gap: "4px" }}>
@@ -1573,7 +1565,18 @@ export default function Home() {
           {isMobile && (
             <button
               type="button"
-              onClick={() => setShowMobileSearch((p) => !p)}
+              data-mobile-search-toggle="true"
+              onClick={() => {
+                if (showMobileSearch) {
+                  // Close search: clear query, hide results and search bar
+                  setQuery("");
+                  setResults([]);
+                  setSelectedItem(null);
+                  setShowMobileSearch(false);
+                } else {
+                  setShowMobileSearch(true);
+                }
+              }}
               aria-label="Search"
               style={{
                 background: "var(--surface-2)",
@@ -1784,6 +1787,7 @@ export default function Home() {
       {/* Mobile search bar - shown when search icon is tapped */}
       {isMobile && showMobileSearch && (
         <div
+          data-mobile-search-area="true"
           style={{
             background: "var(--surface-2)",
             borderBottom: "1px solid var(--border)",
